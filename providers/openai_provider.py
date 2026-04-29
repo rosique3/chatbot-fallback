@@ -4,22 +4,32 @@ from openai import OpenAI
 class OpenAIProvider:
     def __init__(self):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        # Usa el modelo que prefieras de la familia reciente
+        # Tal como indica el ejercicio, usamos un modelo gpt-4o o similar
         self.model = "gpt-4o" 
 
     def generate_stream(self, history):
         try:
-            # Uso de la API de Responses en lugar de Chat Completions
+            # Transformamos el historial al formato 'input' requerido por la API Responses
+            # Cada elemento debe especificar su tipo de contenido
+            formatted_input = []
+            for msg in history:
+                formatted_input.append({
+                    "role": msg["role"],
+                    "content": [{"type": "input_text", "text": msg["content"]}]
+                })
+
+            # Llamada correcta usando 'input' y la API de Responses
             stream = self.client.responses.create(
                 model=self.model,
-                messages=history,
+                input=formatted_input,
                 stream=True
             )
-            for chunk in stream:
-                # Estructura genérica que suele usarse para mapear el stream
-                if getattr(chunk, 'choices', None) and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        yield delta
+
+            # En la API Responses, el streaming devuelve eventos. 
+            # Buscamos el evento 'response.text.delta'
+            for event in stream:
+                if event.type == "response.text.delta":
+                    yield event.delta
+                    
         except Exception as e:
-            raise Exception(f"Error de conectividad/API en OpenAI: {str(e)}")
+            raise Exception(f"Error en OpenAI (Responses API): {str(e)}")
